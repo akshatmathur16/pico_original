@@ -1,0 +1,77 @@
+///////////////////////////////////// hamming encoder module is defined here by rc
+module hammingcodegenerator (
+    input [7:0] data,// 8-bit input data , cpu states from the main state machine
+    output  [11:0] encoded_data // 12-bit encoded data with parity bits
+);
+// No of parity bits to be added to the input data is given be 2^m> m+r+1
+// where m is no. of parity bits and r is no. of input bits
+wire [3:0] parity_bits; // for 8 bit input data, there will be total 4 parity bits
+
+// Calculate parity bits using Hamming code algorithm (xor is used for even parity generator)
+assign parity_bits[0] = data[0] ^ data[1] ^ data[3] ^ data[4] ^ data[6];
+assign parity_bits[1] = data[0] ^ data[2] ^ data[3] ^ data[5] ^ data[6];
+assign parity_bits[2] = data[1] ^ data[2] ^ data[3] ^ data[7];
+assign parity_bits[3] = data[4] ^ data[5] ^ data[6] ^ data[7];
+
+// Append parity bits to data stream
+
+assign encoded_data = {data[7], data[6], data[5], data[4],parity_bits[3], data[3], data[2], data[1],parity_bits[2],data[0],parity_bits[1], parity_bits[0] }; //non systematic encoding where parity bits are placed at the positions of power of two
+
+endmodule
+
+
+module hammingcodegenerator1 (
+    input [31:0] data,// 8-bit input data , cpu states from the main state machine
+    output  [37:0] encoded_data // 12-bit encoded data with parity bits
+);
+// No of parity bits to be added to the input data is given be 2^m> m+r+1
+// where m is no. of parity bits and r is no. of input bits
+wire [5:0] parity_bits; // for 8 bit input data, there will be total 4 parity bits
+
+// Calculate parity bits using Hamming code algorithm (xor is used for even parity generator)
+assign parity_bits[0] = data[0] ^ data[1] ^ data[3] ^ data[4] ^ data[6]^ data[8]^ data[10]^ data[11]^ data[13]^ data[15]^ data[17]^ data[19]^ data[21]^ data[23]^ data[25]^ data[26]^ data[28]^ data[30];
+assign parity_bits[1] = data[0] ^ data[2] ^ data[3] ^ data[5] ^ data[6]^ data[9]^ data[10]^ data[12]^ data[13]^ data[16]^ data[17]^ data[20]^ data[21]^ data[24]^ data[25]^ data[27]^ data[28]^ data[31];
+assign parity_bits[2] = data[1] ^ data[2] ^ data[3] ^ data[7]^ data[8]^ data[9]^ data[10]^ data[14]^ data[15]^ data[16]^ data[17]^ data[22]^ data[23]^ data[24]^ data[25]^ data[29]^ data[30]^ data[31];
+assign parity_bits[3] = data[4] ^ data[5] ^ data[6] ^ data[7]^ data[8]^ data[9]^ data[10]^ data[18]^ data[19]^ data[20]^ data[21]^ data[22]^ data[23]^ data[24]^ data[25];    
+
+assign parity_bits[4] = data[11]^ data[12]^ data[13]^ data[14]^ data[15]^ data[16]^ data[17]^ data[18]^ data[19]^ data[20]^ data[21]^ data[22]^ data[23]^ data[24]^ data[25];
+assign parity_bits[5] = data[26]^ data[27]^ data[28]^ data[29]^ data[30]^ data[31];
+
+// Append parity bits to data stream
+assign encoded_data = {data[31],data[30],data[29],data[28],data[27],data[26],parity_bits[5],data[25],data[24],data[23],data[22],data[21],data[20],data[19],data[18], data[17], data[16], data[15], data[14], data[13],data[12], data[11],parity_bits[4],data[10],data[9],data[8],data[7],data[6], data[5], data[4] ,parity_bits[3], data[3], data[2], data[1] ,parity_bits[2], data[0],parity_bits[1], parity_bits[0] };
+ 
+endmodule
+
+module operandrecovery (
+       input  [37:0] reg_op1, output [31:0] rec_reg_op1
+);
+
+reg [37:0] reg_op1_a;
+wire [5:0] syndrome;           //by rc for hamming encoder
+reg[37:0] syndrome_encoded;   //by rc for hamming encoder
+
+
+     
+
+assign    syndrome[0] = reg_op1[0] ^ reg_op1[2] ^ reg_op1[4] ^ reg_op1[6] ^ reg_op1[8] ^ reg_op1[10] ^ reg_op1[12] ^ reg_op1[14] ^ reg_op1[16] ^ reg_op1[18] ^ reg_op1[20] ^ reg_op1[22] ^ reg_op1[24] ^ reg_op1[26] ^ reg_op1[28] ^ reg_op1[30] ^ reg_op1[32] ^ reg_op1[34] ^ reg_op1[36];
+assign    syndrome[1] = reg_op1[1] ^ reg_op1[2] ^ reg_op1[5] ^ reg_op1[6] ^ reg_op1[9] ^ reg_op1[10]^ reg_op1[13]^ reg_op1[14]^ reg_op1[17]^ reg_op1[18]^ reg_op1[21]^ reg_op1[22]^ reg_op1[25]^ reg_op1[26]^ reg_op1[29]^ reg_op1[30]^ reg_op1[33]^ reg_op1[34]^ reg_op1[37];
+assign    syndrome[2] = reg_op1[3] ^ reg_op1[4] ^ reg_op1[5] ^ reg_op1[6] ^ reg_op1[11]^ reg_op1[12]^ reg_op1[13]^ reg_op1[14]^ reg_op1[19]^ reg_op1[20]^ reg_op1[21]^ reg_op1[22]^ reg_op1[27]^ reg_op1[28]^ reg_op1[29]^ reg_op1[30]^ reg_op1[35]^ reg_op1[36]^ reg_op1[37];
+assign    syndrome[3] = reg_op1[7] ^ reg_op1[8] ^ reg_op1[9] ^ reg_op1[10] ^ reg_op1[11]^ reg_op1[12]^ reg_op1[13]^ reg_op1[14]^ reg_op1[23]^ reg_op1[24]^ reg_op1[25]^ reg_op1[26]^ reg_op1[27]^ reg_op1[28]^ reg_op1[29]^ reg_op1[30];
+                 
+assign   syndrome[4] = reg_op1[15]^ reg_op1[16]^ reg_op1[17]^ reg_op1[18]^ reg_op1[19]^ reg_op1[20]^ reg_op1[21]^ reg_op1[22]^ reg_op1[23]^ reg_op1[24]^ reg_op1[25]^ reg_op1[26]^ reg_op1[27]^ reg_op1[28]^ reg_op1[29]^ reg_op1[30];    
+assign   syndrome[5] = reg_op1[31]^ reg_op1[32]^ reg_op1[33]^ reg_op1[34]^ reg_op1[35]^ reg_op1[36]^ reg_op1[37];
+
+ always @*
+ begin
+ reg_op1_a = reg_op1;
+  if (syndrome != 6'b000000) begin  // Error detected     
+   syndrome_encoded = syndrome; 
+   reg_op1_a = (reg_op1)^syndrome_encoded; //Error correction for generating the correct state 
+ 
+ end
+ end
+ 
+ //AM = removing parity bits from the postion they were added to in hammingcode1 returning 32 bit value
+ assign rec_reg_op1 = {reg_op1_a[37], reg_op1_a[36], reg_op1_a[35], reg_op1_a[34], reg_op1_a[33], reg_op1_a[32], reg_op1_a[30], reg_op1_a[29], reg_op1_a[28], reg_op1_a[27], reg_op1_a[26], reg_op1_a[25], reg_op1_a[24], reg_op1_a[23], reg_op1_a[22], reg_op1_a[21], reg_op1_a[20], reg_op1_a[19], reg_op1_a[18], reg_op1_a[17], reg_op1_a[16], reg_op1_a[14], reg_op1_a[13], reg_op1_a[12], reg_op1_a[11], reg_op1_a[10], reg_op1_a[9], reg_op1_a[8], reg_op1_a[6], reg_op1_a[5], reg_op1_a[4], reg_op1_a[2]};
+endmodule 
+
