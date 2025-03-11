@@ -21,6 +21,10 @@ module testbench #(
 	reg [31:0] in_err1; //AM input error signal for 
 	reg [37:0] in_err2;
 
+  wire trace_valid;
+	wire [35:0] trace_data;
+	integer trace_file;
+
 
   picorv32_wrapper #(
 		.AXI_TEST (AXI_TEST),
@@ -43,35 +47,35 @@ module testbench #(
       repeat (100) @(posedge clk);
       resetn <= 1;
 
-      in_err = 'b0;
-      in_err1 = 'h00000010;
-      in_err2 = 'b0;
-      $display($time,"AM debug in_err1 = %h", in_err1);
-
-      repeat (10000) @(posedge clk);
+//AM      in_err = 'b0;
+//AM      in_err1 = 'h00000010;
+//AM      in_err2 = 'b0;
+//AM      $display($time,"AM debug in_err1 = %h", in_err1);
+//AM
+//AM       repeat (10000) @(posedge clk);
 
       in_err = 'b0;
       in_err1 = 'h00000000;
       in_err2 = 'b0;
       $display($time,"AM debug in_err1 = %h", in_err1);
-
-      repeat (5000) @(posedge clk);
-
-      in_err = 'b0;
-      in_err1 = 'h00000001;
-      in_err2 = 'b0;
-      $display($time,"AM debug in_err1 = %h", in_err1);
-
-      repeat (10000) @(posedge clk);
-
-
-
-      repeat (5000) @(posedge clk);
-
-      in_err = 'b0;
-      in_err1 = 'h00000020;
-      in_err2 = 'b0;
-      $display($time,"AM debug in_err1 = %h", in_err1);
+//AM
+//AM      repeat (5000) @(posedge clk);
+//AM
+//AM      in_err = 'b0;
+//AM      in_err1 = 'h00000001;
+//AM      in_err2 = 'b0;
+//AM      $display($time,"AM debug in_err1 = %h", in_err1);
+//AM
+//AM      repeat (10000) @(posedge clk);
+//AM
+//AM
+//AM
+//AM      repeat (5000) @(posedge clk);
+//AM
+//AM      in_err = 'b0;
+//AM      in_err1 = 'h00000020;
+//AM      in_err2 = 'b0;
+//AM      $display($time,"AM debug in_err1 = %h", in_err1);
 
 
     
@@ -88,11 +92,8 @@ module testbench #(
 		$stop;
 	end
 
-  //AM
-  /*
-	wire trace_valid;
-	wire [35:0] trace_data;
-	integer trace_file;
+  
+
 
 	initial begin
 		if ($test$plusargs("trace")) begin
@@ -107,7 +108,6 @@ module testbench #(
 			$display("Finished writing testbench.trace.");
 		end
 	end
-  */
 
 
 endmodule
@@ -190,7 +190,8 @@ module picorv32_wrapper #(
 		.mem_axi_rready  (mem_axi_rready  ),
 		.mem_axi_rdata   (mem_axi_rdata   ),
 
-		.tests_passed    (tests_passed    )
+		.tests_passed    (tests_passed    ),
+    .in_err1         (in_err1)
 	);
 
 `ifdef RISCV_FORMAL
@@ -348,7 +349,7 @@ module axi4_memory #(
 
 	input             mem_axi_wvalid,
 	output reg        mem_axi_wready,
-	input      [31:0] mem_axi_wdata,
+	input      [31:0] mem_axi_wdata, //AM write data to memory
 	input      [ 3:0] mem_axi_wstrb,
 
 	output reg        mem_axi_bvalid,
@@ -361,9 +362,10 @@ module axi4_memory #(
 
 	output reg        mem_axi_rvalid,
 	input             mem_axi_rready,
-	output reg [31:0] mem_axi_rdata,
+	output reg [31:0] mem_axi_rdata, // AM read data from memory
 
-	output reg        tests_passed
+	output reg        tests_passed,
+  input   [31:0]    in_err1
 );
 	//AM reg [31:0]   memory [0:128*1024/4-1] /* verilator public */;
 	reg [31:0]   memory [0:15000] /* verilator public */;
@@ -412,6 +414,15 @@ module axi4_memory #(
 		end
 	end
 
+
+	wire [37:0] mem_axi_wdata_encoded; //AM encoded data from hammingcode to be written in memory 
+
+  hammingcodegenerator1 h12 (mem_axi_wdata, mem_axi_wdata_encoded);
+
+ //AM  assign mem_axi_wdata_encoded = mem_axi_wdata_encoded;
+
+ 
+
 	reg latched_raddr_en = 0;
 	reg latched_waddr_en = 0;
 	reg latched_wdata_en = 0;
@@ -423,6 +434,8 @@ module axi4_memory #(
 	reg [31:0] latched_raddr;
 	reg [31:0] latched_waddr;
 	reg [31:0] latched_wdata;
+	wire [37:0] latched_wdata_encoded;
+	wire [31:0] latched_wdata_decoded;
 	reg [ 3:0] latched_wstrb;
 	reg        latched_rinsn;
 
@@ -434,16 +447,21 @@ module axi4_memory #(
 		fast_raddr <= 1;
 	end endtask
 
-	task handle_axi_awvalid; begin
-		mem_axi_awready <= 1;
-		latched_waddr = mem_axi_awaddr;
-		latched_waddr_en = 1;
-		fast_waddr <= 1;
-	end endtask
+  task handle_axi_awvalid;
+      begin
+          $display($time,"AM debug inside handle_axi_awvalid");
+          mem_axi_awready <= 1;
+          latched_waddr = mem_axi_awaddr;
+          latched_waddr_en = 1;
+          fast_waddr <= 1;
+      end
+  endtask
 
 	task handle_axi_wvalid; begin
 		mem_axi_wready <= 1;
-		latched_wdata = mem_axi_wdata;
+		//AM latched_wdata = mem_axi_wdata;
+	  //AM latched_wdata_encoded = mem_axi_wdata_encoded;
+    latched_wdata = latched_wdata_decoded;
 		latched_wstrb = mem_axi_wstrb;
 		latched_wdata_en = 1;
 		fast_wdata <= 1;
@@ -457,12 +475,13 @@ module axi4_memory #(
 			mem_axi_rvalid <= 1;
 			latched_raddr_en = 0;
 		end else begin
-			$display("OUT-OF-BOUNDS MEMORY READ FROM %08x", latched_raddr);
+			$display($time,"handle_axi_rvalid OUT-OF-BOUNDS MEMORY READ FROM %08x", latched_raddr);
 			$finish;
 		end
 	end endtask
 
 	task handle_axi_bvalid; begin
+      $display($time,"AM debug inside handle_axi_bvalid");
 		if (verbose)
 			$display("WR: ADDR=%08x DATA=%08x STRB=%04b", latched_waddr, latched_wdata, latched_wstrb);
 		if (latched_waddr < 128*1024) begin
@@ -488,13 +507,25 @@ module axi4_memory #(
 			if (latched_wdata == 123456789)
 				tests_passed = 1;
 		end else begin
-			$display("OUT-OF-BOUNDS MEMORY WRITE TO %08x", latched_waddr);
+			$display($time,"handle_axi_bvalid OUT-OF-BOUNDS MEMORY WRITE TO %08x", latched_waddr);
 			$finish;
 		end
 		mem_axi_bvalid <= 1;
 		latched_waddr_en = 0;
 		latched_wdata_en = 0;
 	end endtask
+
+  assign latched_wdata_encoded = mem_axi_wdata_encoded;
+  
+  operandrecovery1 h23 (latched_wdata_encoded, latched_wdata_decoded);
+
+  
+   always @( latched_wdata_decoded)
+   begin
+       latched_wdata = latched_wdata_decoded;
+      // latched_wdata = latched_wdata_encoded;
+   end
+
 
 	always @(negedge clk) begin
 		if (mem_axi_arvalid && !(latched_raddr_en || fast_raddr) && async_axi_transaction[0]) handle_axi_arvalid;
