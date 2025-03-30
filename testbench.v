@@ -18,8 +18,9 @@ module testbench #(
 
   //AM pulled these signals to top to test
   reg [48:0] in_err; //input error signal by rc error signal for rrns
-	reg [31:0] in_err1; //AM input error signal for 
+	reg [11:0] in_err1; //AM input error signal for 
 	reg [37:0] in_err2;
+	reg [37:0] in_err3; //AM input error signal for memory read write
 
   wire trace_valid;
 	wire [35:0] trace_data;
@@ -37,7 +38,8 @@ module testbench #(
 		.trace_data(trace_data),
     .in_err(in_err), //input error signal by rc error signal for rrns
     .in_err1(in_err1), //AM input error signal for 
-    .in_err2(in_err2) 
+    .in_err2(in_err2), 
+    .in_err3(in_err3) 
 
 	);
 
@@ -47,35 +49,39 @@ module testbench #(
       repeat (100) @(posedge clk);
       resetn <= 1;
 
-//AM      in_err = 'b0;
-//AM      in_err1 = 'h00000010;
-//AM      in_err2 = 'b0;
-//AM      $display($time,"AM debug in_err1 = %h", in_err1);
-//AM
-//AM       repeat (10000) @(posedge clk);
+      in_err = 'b0;
+      in_err1 = 'h00000001;
+      in_err2 = 'b0;
+      in_err3 = 'h00000101;
+      $display($time,"AM debug in_err1 = %h", in_err1);
+      $display($time,"AM debug in_err3 = %h", in_err3);
+
+       repeat (1000) @(posedge clk);
 
       in_err = 'b0;
       in_err1 = 'h00000000;
       in_err2 = 'b0;
+      in_err3 = 'h00000000;
       $display($time,"AM debug in_err1 = %h", in_err1);
-//AM
-//AM      repeat (5000) @(posedge clk);
-//AM
-//AM      in_err = 'b0;
-//AM      in_err1 = 'h00000001;
-//AM      in_err2 = 'b0;
-//AM      $display($time,"AM debug in_err1 = %h", in_err1);
-//AM
-//AM      repeat (10000) @(posedge clk);
-//AM
-//AM
-//AM
-//AM      repeat (5000) @(posedge clk);
-//AM
-//AM      in_err = 'b0;
-//AM      in_err1 = 'h00000020;
-//AM      in_err2 = 'b0;
-//AM      $display($time,"AM debug in_err1 = %h", in_err1);
+      $display($time,"AM debug in_err3 = %h", in_err3);
+
+      repeat (5000) @(posedge clk);
+
+      in_err = 'b0;
+      in_err1 = 'h00000010;
+      in_err2 = 'b0;
+      in_err3 = 'h00010001;
+      $display($time,"AM debug in_err1 = %h", in_err1);
+      $display($time,"AM debug in_err3 = %h", in_err3);
+
+      repeat (5000) @(posedge clk);
+
+      in_err = 'b0;
+      in_err1 = 'h00000000;
+      in_err2 = 'b0;
+      in_err3 = 'h00000011;
+      $display($time,"AM debug in_err1 = %h", in_err1);
+      $display($time,"AM debug in_err3 = %h", in_err3);
 
 
     
@@ -125,8 +131,9 @@ module picorv32_wrapper #(
  
   //AM pulling err signals to top top test
   input [48:0] in_err, //input error signal by rc error signal for rrns
-	input [31:0] in_err1, //AM input error signal for 
-	input [37:0] in_err2 
+	input [11:0] in_err1, //AM input error signal for 
+	input [37:0] in_err2, 
+	input [37:0] in_err3 
 
 );
 	wire tests_passed;
@@ -188,10 +195,12 @@ module picorv32_wrapper #(
 
 		.mem_axi_rvalid  (mem_axi_rvalid  ),
 		.mem_axi_rready  (mem_axi_rready  ),
-		.mem_axi_rdata   (mem_axi_rdata   ),
+		//AM .mem_axi_rdata   (mem_axi_rdata   ),
+		.mem_axi_rdata_decoded (mem_axi_rdata   ),
 
 		.tests_passed    (tests_passed    ),
-    .in_err1         (in_err1)
+    .in_err1         (in_err1),
+    .in_err3         (in_err3)
 	);
 
 `ifdef RISCV_FORMAL
@@ -362,14 +371,19 @@ module axi4_memory #(
 
 	output reg        mem_axi_rvalid,
 	input             mem_axi_rready,
-	output reg [31:0] mem_axi_rdata, // AM read data from memory
+	//AM output reg [31:0] mem_axi_rdata, // AM read data from memory
+	output [31:0] mem_axi_rdata_decoded, // AM read data from memory
 
 	output reg        tests_passed,
-  input   [31:0]    in_err1
+  input   [11:0]    in_err1,
+  input   [37:0]    in_err3
 );
 	//AM reg [31:0]   memory [0:128*1024/4-1] /* verilator public */;
-	reg [31:0]   memory [0:15000] /* verilator public */;
-	reg verbose;
+
+  //AM (* ram_style = "block" *)	reg [31:0]   memory [0:15000] /* verilator public */;
+  (* ram_style = "block" *)	reg [31:0]   memory [0:150] /* verilator public */;
+	
+  reg verbose;
 	initial verbose = $test$plusargs("verbose") || VERBOSE;
 
 	reg axi_test;
@@ -417,9 +431,8 @@ module axi4_memory #(
 
 	wire [37:0] mem_axi_wdata_encoded; //AM encoded data from hammingcode to be written in memory 
 
-  hammingcodegenerator1 h12 (mem_axi_wdata, mem_axi_wdata_encoded);
+  hammingcodegenerator1 write_port_hamming (mem_axi_wdata, mem_axi_wdata_encoded);
 
- //AM  assign mem_axi_wdata_encoded = mem_axi_wdata_encoded;
 
  
 
@@ -438,6 +451,13 @@ module axi4_memory #(
 	wire [31:0] latched_wdata_decoded;
 	reg [ 3:0] latched_wstrb;
 	reg        latched_rinsn;
+
+  //AM Signals for Read port Hamming code
+
+  wire [37:0] mem_axi_rdata_encoded;
+	wire [37:0] mem_axi_rdata_encoded_error;
+	reg [31:0] mem_axi_rdata; 
+
 
 	task handle_axi_arvalid; begin
 		mem_axi_arready <= 1;
@@ -515,16 +535,24 @@ module axi4_memory #(
 		latched_wdata_en = 0;
 	end endtask
 
-  assign latched_wdata_encoded = mem_axi_wdata_encoded;
+  assign latched_wdata_encoded = mem_axi_wdata_encoded ^ in_err3;
+  //AMassign latched_wdata_encoded = mem_axi_wdata_encoded;
   
-  operandrecovery1 h23 (latched_wdata_encoded, latched_wdata_decoded);
+  operandrecovery1 write_port_recover (latched_wdata_encoded, latched_wdata_decoded);
 
   
-   always @( latched_wdata_decoded)
-   begin
-       latched_wdata = latched_wdata_decoded;
-      // latched_wdata = latched_wdata_encoded;
-   end
+   //AM always @( latched_wdata_decoded)
+   //AM begin
+   //AM     latched_wdata = latched_wdata_decoded;
+   //AM    // latched_wdata = latched_wdata_encoded;
+   //AM end
+
+   hammingcodegenerator1 read_port_hamming(mem_axi_rdata, mem_axi_rdata_encoded);
+   
+   assign mem_axi_rdata_encoded_error = mem_axi_rdata_encoded ^ in_err3;
+   //AMassign mem_axi_rdata_encoded_error = mem_axi_rdata_encoded ;
+   operandrecovery1 read_port_recover (mem_axi_rdata_encoded_error, mem_axi_rdata_decoded);
+   //AM operandrecovery1 read_port_recover (mem_axi_rdata_encoded, mem_axi_rdata_decoded);
 
 
 	always @(negedge clk) begin
@@ -564,6 +592,7 @@ module axi4_memory #(
 		end
 
 		if (mem_axi_wvalid && mem_axi_wready && !fast_wdata) begin
+        $display($time,"AM debug in posedge if block");
 			latched_wdata = mem_axi_wdata;
 			latched_wstrb = mem_axi_wstrb;
 			latched_wdata_en = 1;
@@ -574,6 +603,11 @@ module axi4_memory #(
 		if (mem_axi_wvalid  && !(latched_wdata_en || fast_wdata) && !delay_axi_transaction[2]) handle_axi_wvalid;
 
 		if (!mem_axi_rvalid && latched_raddr_en && !delay_axi_transaction[3]) handle_axi_rvalid;
-		if (!mem_axi_bvalid && latched_waddr_en && latched_wdata_en && !delay_axi_transaction[4]) handle_axi_bvalid;
+		if (!mem_axi_bvalid && latched_waddr_en && latched_wdata_en && !delay_axi_transaction[4])
+        begin
+            handle_axi_bvalid;
+            $display($time,"AM debug handle_axi_bvalid called posedge block");
+        end 
 	end
 endmodule
+
