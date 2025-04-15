@@ -2785,14 +2785,15 @@ module picorv32_axi #(
   //can remove them for final submission
   input [48:0] in_err, 
 	input [11:0] in_err1,
-	input [37:0] in_err2
+	input [37:0] in_err2,
+	input  [ 3:0] mem_wstrb,
+  output mem_valid
 
 
 );
-	wire        mem_valid;
+//AM	wire        mem_valid;
 	wire [31:0] mem_addr;
 	wire [31:0] mem_wdata;
-	wire [ 3:0] mem_wstrb;
 	wire        mem_instr;
 	wire        mem_ready;
 	wire [31:0] mem_rdata;
