@@ -162,8 +162,11 @@ module picorv32 #(
   //AM error signals 
 
 	input [48:0] in_err, //input error signal by rc error signal for rrns
-	input [31:0] in_err1, //AM input error signal for 
-	input [37:0] in_err2 //AM input error signal for cpu_regs_rs1_encoded -> generates cpu_regs_rs1_encoded1(error induced signal) which goes into operandrecovery
+	input [11:0] in_err1, //AM input error signal for 
+	input [37:0] in_err2, //AM input error signal for cpu_regs_rs1_encoded -> generates cpu_regs_rs1_encoded1(error induced signal) which goes into operandrecovery
+
+  output err //AM pulling err signal from rrns out to top module so it can be used for handshaking if need be
+
 );
 	localparam integer irq_timer = 0;
 	localparam integer irq_ebreak = 1;
@@ -1277,7 +1280,14 @@ module picorv32 #(
 	reg [31:0] alu_shl, alu_shr;
 	reg alu_eq, alu_ltu, alu_lts;
 	//AM for FSM
+	wire pre_err;
   reg invalid;
+
+
+  //AM rrns is implemented for sub operation as of now
+	rrnsalu ralu (.in1(reg_op1),.in2(reg_op2),.add_sub(instr_sub),.in_err(in_err),.out(result),.error(pre_err)); //calling rrnsalu module by rc
+
+	assign err = (instr_add||instr_sub||instr_addi)? pre_err: 1'b0; //used for error detection in case of multiple residue error by rc
 
   
 
@@ -1528,12 +1538,15 @@ module picorv32 #(
 		if (!ENABLE_TRACE)
 			trace_data <= 'bx;
 
-		if (!resetn) begin
+  // initialization block - i.e when reset is hit 
+		if (!resetn) 
+    begin
 			reg_pc <= PROGADDR_RESET;
 			reg_next_pc <= PROGADDR_RESET;
 			if (ENABLE_COUNTERS)
 				count_instr <= 0;
-			latched_store <= 0;
+			
+      latched_store <= 0;
 			latched_stalu <= 0;
 			latched_branch <= 0;
 			latched_trace <= 0;
@@ -1549,13 +1562,18 @@ module picorv32 #(
 			irq_state <= 0;
 			eoi <= 0;
 			timer <= 0;
-			if (~STACKADDR) begin
+		
+      if (~STACKADDR)
+      begin
 				latched_store <= 1;
 				latched_rd <= 2;
 				reg_out <= STACKADDR;
 			end
-			cpu_state <= cpu_state_fetch_encoded;
-		end else
+			
+      cpu_state <= cpu_state_fetch_encoded;
+		
+  end 
+  else
 		(* parallel_case, full_case *)
 		case (cpu_state)
 			cpu_state_trap_encoded: begin
@@ -1639,7 +1657,24 @@ module picorv32 #(
             
           //AM comment below line when implementing rrns and replace with apt
           //line
-					reg_next_pc <= current_pc + (compressed_instr ? 2 : 4);
+					// reg_next_pc <= current_pc + (compressed_instr ? 2 : 4); //original
+          // line
+          
+          if(err)
+              reg_next_pc<= current_pc;
+          else
+          begin
+              reg_next_pc<= current_pc+ (compressed_instr ? 2 : 4);// modified lines by rc
+              //based upon the check signal , if check is low than next pc is rollback to the same value, otherwise it will jump to PC+4 by rc
+              $display("DEBUG here1");
+          end
+
+
+
+
+
+
+
 					if (ENABLE_TRACE)
 						latched_trace <= 1;
 					if (ENABLE_COUNTERS) begin
@@ -1677,32 +1712,48 @@ module picorv32 #(
 								reg_op2 <= cpuregs_rs2;
 								dbg_rs2val <= cpuregs_rs2;
 								dbg_rs2val_valid <= 1;
-								if (pcpi_int_ready) begin
+								if (pcpi_int_ready)
+                begin
 									mem_do_rinst <= 1;
 									pcpi_valid <= 0;
 									reg_out <= pcpi_int_rd;
 									latched_store <= pcpi_int_wr;
 									cpu_state <= cpu_state_fetch_encoded;
-								end else
-								if (CATCH_ILLINSN && (pcpi_timeout || instr_ecall_ebreak)) begin
+								end 
+                else
+								if (CATCH_ILLINSN && (pcpi_timeout || instr_ecall_ebreak))
+                begin
 									pcpi_valid <= 0;
-									`debug($display("EBREAK OR UNSUPPORTED INSN AT 0x%08x", reg_pc);)
-									if (ENABLE_IRQ && !irq_mask[irq_ebreak] && !irq_active) begin
+									//AM `debug($display("EBREAK OR UNSUPPORTED INSN AT 0x%08x", reg_pc);)
+									`debug($display($time,"B1 EBREAK OR UNSUPPORTED INSN AT 0x%08x", reg_pc);)
+									if (ENABLE_IRQ && !irq_mask[irq_ebreak] && !irq_active)
+                  begin
 										next_irq_pending[irq_ebreak] = 1;
 										cpu_state <= cpu_state_fetch_encoded;
-									end else
+									end 
+                  else
+                  begin
 										cpu_state <= cpu_state_trap_encoded;
+                    $display($time,"AM debug trap t1");
+                  end
 								end
-							end else begin
+							end 
+              else
+              begin
 								cpu_state <= cpu_state_ld_rs2_encoded;
 							end
-						end else begin
-							`debug($display("EBREAK OR UNSUPPORTED INSN AT 0x%08x", reg_pc);)
+						end
+            else begin
+							`debug($display($time,"B2 EBREAK OR UNSUPPORTED INSN AT 0x%08x", reg_pc);)
 							if (ENABLE_IRQ && !irq_mask[irq_ebreak] && !irq_active) begin
 								next_irq_pending[irq_ebreak] = 1;
 								cpu_state <= cpu_state_fetch_encoded;
-							end else
+							end 
+              else
+              begin
 								cpu_state <= cpu_state_trap_encoded;
+                    $display($time,"AM debug trap t2");
+              end
 						end
 					end
 					ENABLE_COUNTERS && is_rdcycle_rdcycleh_rdinstr_rdinstrh: begin
@@ -1866,12 +1917,16 @@ module picorv32 #(
 						end else
 						if (CATCH_ILLINSN && (pcpi_timeout || instr_ecall_ebreak)) begin
 							pcpi_valid <= 0;
-							`debug($display("EBREAK OR UNSUPPORTED INSN AT 0x%08x", reg_pc);)
+							`debug($display($time,"B3 EBREAK OR UNSUPPORTED INSN AT 0x%08x", reg_pc);)
 							if (ENABLE_IRQ && !irq_mask[irq_ebreak] && !irq_active) begin
 								next_irq_pending[irq_ebreak] = 1;
 								cpu_state <= cpu_state_fetch_encoded;
-							end else
+							end 
+              else
+              begin
 								cpu_state <= cpu_state_trap_encoded;
+                $display($time,"AM debug trap t3");
+              end
 						end
 					end
 					is_sb_sh_sw: begin
@@ -1912,8 +1967,17 @@ module picorv32 #(
 					latched_branch <= instr_jalr;
 					latched_store <= 1;
 					latched_stalu <= 1;
-					cpu_state <= cpu_state_fetch_encoded;
+					//cpu_state <= cpu_state_fetch_encoded; //original
           //AM include the if-else block when rrns is implemented
+          if(err)           //modified, condition for check signal is applied by rc
+          begin       
+            cpu_state <= cpu_state_exec_encoded;
+          end
+          else
+          begin
+            cpu_state <= cpu_state_fetch_encoded; ///modified, if check is low than the execution state will be on hold
+          end
+
 				end
 			end
 
@@ -2008,6 +2072,7 @@ module picorv32 #(
       default:
       begin
           $display($time, "AM debug in default state\n");
+          $display($time, "AM debug in cpu_state=%h \n",cpu_state);
           invalid <= 1'b1;
           dbg_ascii_state = "inval";
 
@@ -2058,15 +2123,23 @@ module picorv32 #(
 				`debug($display("MISALIGNED WORD: 0x%08x", reg_op1);)
 				if (ENABLE_IRQ && !irq_mask[irq_buserror] && !irq_active) begin
 					next_irq_pending[irq_buserror] = 1;
-				end else
+				end 
+        else
+        begin
 					cpu_state <= cpu_state_trap_encoded;
+          $display($time,"AM debug trap t4");
+        end
 			end
 			if (mem_wordsize == 1 && reg_op1[0] != 0) begin
 				`debug($display("MISALIGNED HALFWORD: 0x%08x", reg_op1);)
 				if (ENABLE_IRQ && !irq_mask[irq_buserror] && !irq_active) begin
 					next_irq_pending[irq_buserror] = 1;
-				end else
+				end 
+        else
+        begin
 					cpu_state <= cpu_state_trap_encoded;
+          $display($time,"AM debug trap t5");
+        end
 			end
 		end
 		if (CATCH_MISALIGN && resetn && mem_do_rinst && (COMPRESSED_ISA ? reg_pc[0] : |reg_pc[1:0])) begin
@@ -2076,8 +2149,10 @@ module picorv32 #(
 			end else
 				cpu_state <= cpu_state_trap_encoded;
 		end
-		if (!CATCH_ILLINSN && decoder_trigger_q && !decoder_pseudo_trigger_q && instr_ecall_ebreak) begin
+		if (!CATCH_ILLINSN && decoder_trigger_q && !decoder_pseudo_trigger_q && instr_ecall_ebreak) 
+    begin
 			cpu_state <= cpu_state_trap_encoded;
+      $display($time,"AM debug trap t6");
 		end
 
 		if (!resetn || mem_done) begin
@@ -2745,15 +2820,17 @@ module picorv32_axi #(
   //AM pulling these signals to the top level to test
   //can remove them for final submission
   input [48:0] in_err, 
-	input [31:0] in_err1,
-	input [37:0] in_err2
+	input [11:0] in_err1,
+	input [37:0] in_err2,
+	input  [ 3:0] mem_wstrb,
+  output mem_valid,
+  output err //AM pulling out err signal from rrns so it can be used as handshaking signal if need be 
 
 
 );
-	wire        mem_valid;
+//AM	wire        mem_valid;
 	wire [31:0] mem_addr;
 	wire [31:0] mem_wdata;
-	wire [ 3:0] mem_wstrb;
 	wire        mem_instr;
 	wire        mem_ready;
 	wire [31:0] mem_rdata;
