@@ -163,7 +163,10 @@ module picorv32 #(
 
 	input [48:0] in_err, //input error signal by rc error signal for rrns
 	input [11:0] in_err1, //AM input error signal for 
-	input [37:0] in_err2 //AM input error signal for cpu_regs_rs1_encoded -> generates cpu_regs_rs1_encoded1(error induced signal) which goes into operandrecovery
+	input [37:0] in_err2, //AM input error signal for cpu_regs_rs1_encoded -> generates cpu_regs_rs1_encoded1(error induced signal) which goes into operandrecovery
+
+  output err //AM pulling err signal from rrns out to top module so it can be used for handshaking if need be
+
 );
 	localparam integer irq_timer = 0;
 	localparam integer irq_ebreak = 1;
@@ -1277,7 +1280,14 @@ module picorv32 #(
 	reg [31:0] alu_shl, alu_shr;
 	reg alu_eq, alu_ltu, alu_lts;
 	//AM for FSM
+	wire pre_err;
   reg invalid;
+
+
+  //AM rrns is implemented for sub operation as of now
+	rrnsalu ralu (.in1(reg_op1),.in2(reg_op2),.add_sub(instr_sub),.in_err(in_err),.out(result),.error(pre_err)); //calling rrnsalu module by rc
+
+	assign err = (instr_add||instr_sub||instr_addi)? pre_err: 1'b0; //used for error detection in case of multiple residue error by rc
 
   
 
@@ -1647,7 +1657,24 @@ module picorv32 #(
             
           //AM comment below line when implementing rrns and replace with apt
           //line
-					reg_next_pc <= current_pc + (compressed_instr ? 2 : 4);
+					// reg_next_pc <= current_pc + (compressed_instr ? 2 : 4); //original
+          // line
+          
+          if(err)
+              reg_next_pc<= current_pc;
+          else
+          begin
+              reg_next_pc<= current_pc+ (compressed_instr ? 2 : 4);// modified lines by rc
+              //based upon the check signal , if check is low than next pc is rollback to the same value, otherwise it will jump to PC+4 by rc
+              $display("DEBUG here1");
+          end
+
+
+
+
+
+
+
 					if (ENABLE_TRACE)
 						latched_trace <= 1;
 					if (ENABLE_COUNTERS) begin
@@ -1940,8 +1967,17 @@ module picorv32 #(
 					latched_branch <= instr_jalr;
 					latched_store <= 1;
 					latched_stalu <= 1;
-					cpu_state <= cpu_state_fetch_encoded;
+					//cpu_state <= cpu_state_fetch_encoded; //original
           //AM include the if-else block when rrns is implemented
+          if(err)           //modified, condition for check signal is applied by rc
+          begin       
+            cpu_state <= cpu_state_exec_encoded;
+          end
+          else
+          begin
+            cpu_state <= cpu_state_fetch_encoded; ///modified, if check is low than the execution state will be on hold
+          end
+
 				end
 			end
 
@@ -2787,7 +2823,8 @@ module picorv32_axi #(
 	input [11:0] in_err1,
 	input [37:0] in_err2,
 	input  [ 3:0] mem_wstrb,
-  output mem_valid
+  output mem_valid,
+  output err //AM pulling out err signal from rrns so it can be used as handshaking signal if need be 
 
 
 );

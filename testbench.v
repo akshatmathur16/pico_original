@@ -25,6 +25,7 @@ module testbench #(
   wire trace_valid;
 	wire [35:0] trace_data;
 	integer trace_file;
+  wire err;
 
 
   picorv32_wrapper #(
@@ -39,7 +40,8 @@ module testbench #(
     .in_err(in_err), //input error signal by rc error signal for rrns
     .in_err1(in_err1), //AM input error signal for 
     .in_err2(in_err2), 
-    .in_err3(in_err3) 
+    .in_err3(in_err3),
+    .err(err)
 
 	);
 
@@ -49,6 +51,7 @@ module testbench #(
       repeat (100) @(posedge clk);
       resetn <= 1;
 
+      //AMin_err = 'hA0B0C1D0EF89;
       in_err = 'b0;
       in_err1 = 'h00000001;
       in_err2 = 'b0;
@@ -67,6 +70,7 @@ module testbench #(
 
       repeat (5000) @(posedge clk);
 
+      //AMin_err = 'h1234ABCDEF0A;
       in_err = 'b0;
       in_err1 = 'h00000010;
       in_err2 = 'b0;
@@ -138,7 +142,8 @@ module picorv32_wrapper #(
   input [48:0] in_err, //input error signal by rc error signal for rrns
 	input [11:0] in_err1, //AM input error signal for 
 	input [37:0] in_err2, 
-	input [37:0] in_err3 
+	input [37:0] in_err3,
+  output err//AM pulling out err signal from rrns so it can be used as handshaking signal if need be
 
 );
 	wire tests_passed;
@@ -330,7 +335,8 @@ module picorv32_wrapper #(
     .in_err1(in_err1), //AM input error signal for 
     .in_err2(in_err2),
     .mem_wstrb(mem_wstrb),
-    .mem_valid(mem_valid)
+    .mem_valid(mem_valid),
+    .err(err) //AM
 
 	);
 
@@ -429,7 +435,7 @@ module axi4_memory #(
 	//AM reg [31:0]   memory [0:128*1024/4-1] /* verilator public */;
 
   //AM (* ram_style = "block" *)	reg [31:0]   memory [0:15000] /* verilator public */;
-  (* ram_style = "block" *)	reg [31:0]   memory [0:150] /* verilator public */;
+  (* ram_style = "block" *)	reg [31:0]   memory [0:774] /* verilator public */;
 	
   reg verbose;
 	initial verbose = $test$plusargs("verbose") || VERBOSE;
@@ -460,7 +466,7 @@ module axi4_memory #(
 
 	reg [1023:0] firmware_file;
 	initial begin
-			firmware_file = "firmware/firmware.hex";
+			firmware_file = "firmware/firmware.hex.org";
       $readmemh(firmware_file,memory);
 	end
 
