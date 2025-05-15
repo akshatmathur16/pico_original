@@ -11,6 +11,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+//uart
+#define reg_uart_clkdiv (*(volatile uint32_t*)0x02000004)
+
 // irq.c
 uint32_t *irq(uint32_t *regs, uint32_t irqs);
 

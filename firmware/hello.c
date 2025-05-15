@@ -9,6 +9,7 @@
 
 void hello(void)
 {
+	reg_uart_clkdiv = 104;
 	print_str("hello world\n");
 }
 

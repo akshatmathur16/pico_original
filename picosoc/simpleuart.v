@@ -49,7 +49,7 @@ module simpleuart #(parameter integer DEFAULT_DIV = 1) (
 
 	assign reg_div_do = cfg_divider;
 
-	assign reg_dat_wait = reg_dat_we && (send_bitcnt || send_dummy);
+	assign reg_dat_wait = (send_bitcnt || send_dummy);
 	assign reg_dat_do = recv_buf_valid ? recv_buf_data : ~0;
 
 	always @(posedge clk) begin
@@ -108,7 +108,7 @@ module simpleuart #(parameter integer DEFAULT_DIV = 1) (
 
 	always @(posedge clk) begin
 		if (reg_div_we)
-			send_dummy <= 1;
+			send_dummy <= 0;
 		send_divcnt <= send_divcnt + 1;
 		if (!resetn) begin
 			send_pattern <= ~0;
@@ -116,13 +116,14 @@ module simpleuart #(parameter integer DEFAULT_DIV = 1) (
 			send_divcnt <= 0;
 			send_dummy <= 1;
 		end else begin
-			if (send_dummy && !send_bitcnt) begin
+			if (send_dummy && !send_bitcnt) begin	//dummy transmission
 				send_pattern <= ~0;
 				send_bitcnt <= 15;
 				send_divcnt <= 0;
 				send_dummy <= 0;
 			end else
-			if (reg_dat_we && !send_bitcnt) begin
+			if (reg_dat_we && !send_bitcnt) begin				
+			//write enable = 1 and number of bits to be transmitted = 0
 				send_pattern <= {1'b1, reg_dat_di[7:0], 1'b0};
 				send_bitcnt <= 10;
 				send_divcnt <= 0;

@@ -24,10 +24,10 @@
 
 `timescale 1 ns / 1 ps
 // `default_nettype none
- `define DEBUGNETS
- `define DEBUGREGS
- `define DEBUGASM
- `define DEBUG
+// `define DEBUGNETS
+// `define DEBUGREGS
+// `define DEBUGASM
+// `define DEBUG
 
 `ifdef DEBUG
   `define debug(debug_command) debug_command
@@ -163,10 +163,7 @@ module picorv32 #(
 
 	input [48:0] in_err, //input error signal by rc error signal for rrns
 	input [11:0] in_err1, //AM input error signal for 
-	input [37:0] in_err2, //AM input error signal for cpu_regs_rs1_encoded -> generates cpu_regs_rs1_encoded1(error induced signal) which goes into operandrecovery
-
-  output err //AM pulling err signal from rrns out to top module so it can be used for handshaking if need be
-
+	input [37:0] in_err2 //AM input error signal for cpu_regs_rs1_encoded -> generates cpu_regs_rs1_encoded1(error induced signal) which goes into operandrecovery
 );
 	localparam integer irq_timer = 0;
 	localparam integer irq_ebreak = 1;
@@ -716,60 +713,54 @@ module picorv32 #(
 	always @* begin
 		new_ascii_instr = "";
 
-		if (instr_lui)      new_ascii_instr = "lui";
-		if (instr_auipc)    new_ascii_instr = "auipc";
-		if (instr_jal)      new_ascii_instr = "jal";
-		if (instr_jalr)     new_ascii_instr = "jalr";
-
-		if (instr_beq)      new_ascii_instr = "beq";
-		if (instr_bne)      new_ascii_instr = "bne";
-		if (instr_blt)      new_ascii_instr = "blt";
-		if (instr_bge)      new_ascii_instr = "bge";
-		if (instr_bltu)     new_ascii_instr = "bltu";
-		if (instr_bgeu)     new_ascii_instr = "bgeu";
-
-		if (instr_lb)       new_ascii_instr = "lb";
-		if (instr_lh)       new_ascii_instr = "lh";
-		if (instr_lw)       new_ascii_instr = "lw";
-		if (instr_lbu)      new_ascii_instr = "lbu";
-		if (instr_lhu)      new_ascii_instr = "lhu";
-		if (instr_sb)       new_ascii_instr = "sb";
-		if (instr_sh)       new_ascii_instr = "sh";
-		if (instr_sw)       new_ascii_instr = "sw";
-
-		if (instr_addi)     new_ascii_instr = "addi";
-		if (instr_slti)     new_ascii_instr = "slti";
-		if (instr_sltiu)    new_ascii_instr = "sltiu";
-		if (instr_xori)     new_ascii_instr = "xori";
-		if (instr_ori)      new_ascii_instr = "ori";
-		if (instr_andi)     new_ascii_instr = "andi";
-		if (instr_slli)     new_ascii_instr = "slli";
-		if (instr_srli)     new_ascii_instr = "srli";
-		if (instr_srai)     new_ascii_instr = "srai";
-
-		if (instr_add)      new_ascii_instr = "add";
-		if (instr_sub)      new_ascii_instr = "sub";
-		if (instr_sll)      new_ascii_instr = "sll";
-		if (instr_slt)      new_ascii_instr = "slt";
-		if (instr_sltu)     new_ascii_instr = "sltu";
-		if (instr_xor)      new_ascii_instr = "xor";
-		if (instr_srl)      new_ascii_instr = "srl";
-		if (instr_sra)      new_ascii_instr = "sra";
-		if (instr_or)       new_ascii_instr = "or";
-		if (instr_and)      new_ascii_instr = "and";
-
-		if (instr_rdcycle)  new_ascii_instr = "rdcycle";
-		if (instr_rdcycleh) new_ascii_instr = "rdcycleh";
-		if (instr_rdinstr)  new_ascii_instr = "rdinstr";
-		if (instr_rdinstrh) new_ascii_instr = "rdinstrh";
-		if (instr_fence)    new_ascii_instr = "fence";
-
-		if (instr_getq)     new_ascii_instr = "getq";
-		if (instr_setq)     new_ascii_instr = "setq";
-		if (instr_retirq)   new_ascii_instr = "retirq";
-		if (instr_maskirq)  new_ascii_instr = "maskirq";
-		if (instr_waitirq)  new_ascii_instr = "waitirq";
-		if (instr_timer)    new_ascii_instr = "timer";
+		if (instr_lui)      new_ascii_instr = {8'd108,8'd117,8'd105};
+		if (instr_auipc)    new_ascii_instr = {8'd97,8'd117,8'd105,8'd112,8'd99};
+		if (instr_jal)      new_ascii_instr = {8'd106,8'd97,8'd108};
+		if (instr_jalr)     new_ascii_instr = {8'd106,8'd97,8'd108,8'd114};
+		if (instr_beq)      new_ascii_instr = {8'd98,8'd101,8'd113};
+		if (instr_bne)      new_ascii_instr = {8'd98,8'd110,8'd101};
+		if (instr_blt)      new_ascii_instr = {8'd98,8'd108,8'd116};
+		if (instr_bge)      new_ascii_instr = {8'd98,8'd103,8'd101};
+		if (instr_bltu)     new_ascii_instr = {8'd98,8'd108,8'd116,8'd117};
+		if (instr_bgeu)     new_ascii_instr = {8'd98,8'd103,8'd101,8'd117};
+		if (instr_lb)       new_ascii_instr = {8'd108,8'd98};
+		if (instr_lh)       new_ascii_instr = {8'd108,8'd104};
+		if (instr_lw)       new_ascii_instr = {8'd108,8'd119};
+		if (instr_lbu)      new_ascii_instr = {8'd108,8'd98,8'd117};
+		if (instr_lhu)      new_ascii_instr = {8'd108,8'd104,8'd117};
+		if (instr_sb)       new_ascii_instr = {8'd115,8'd98};
+		if (instr_sh)       new_ascii_instr = {8'd115,8'd104};
+		if (instr_sw)       new_ascii_instr = {8'd115,8'd119};                       
+		if (instr_addi)     new_ascii_instr = {8'd97,8'd100,8'd100,8'd105};
+		if (instr_slti)     new_ascii_instr = {8'd115,8'd108,8'd116,8'd105};
+		if (instr_sltiu)    new_ascii_instr = {8'd115,8'd108,8'd116,8'd105,8'd117};
+		if (instr_xori)     new_ascii_instr = {8'd120,8'd111,8'd114,8'd105};
+		if (instr_ori)      new_ascii_instr = {8'd111,8'd114,8'd105};
+		if (instr_andi)     new_ascii_instr = {8'd97,8'd110,8'd100,8'd105};
+		if (instr_slli)     new_ascii_instr = {8'd115,8'd108,8'd108,8'd105};
+		if (instr_srli)     new_ascii_instr = {8'd115,8'd114,8'd108,8'd105};
+		if (instr_srai)     new_ascii_instr = {8'd115,8'd114,8'd97,8'd105};
+		if (instr_add)      new_ascii_instr = {8'd97,8'd100,8'd100};
+		if (instr_sub)      new_ascii_instr = {8'd115,8'd117,8'd98};
+		if (instr_sll)      new_ascii_instr = {8'd115,8'd108,8'd108};
+		if (instr_slt)      new_ascii_instr = {8'd115,8'd108,8'd116};
+		if (instr_sltu)     new_ascii_instr = {8'd115,8'd108,8'd116,8'd117};
+		if (instr_xor)      new_ascii_instr = {8'd120,8'd111,8'd114};
+		if (instr_srl)      new_ascii_instr = {8'd115,8'd114,8'd108};
+		if (instr_sra)      new_ascii_instr = {8'd115,8'd114,8'd97};
+		if (instr_or)       new_ascii_instr = {8'd111,8'd114};
+		if (instr_and)      new_ascii_instr = {8'd97,8'd110,8'd100};
+		if (instr_rdcycle)  new_ascii_instr = {8'd114,8'd100,8'd99,8'd121,8'd99,8'd108,8'd101};
+		if (instr_rdcycleh) new_ascii_instr = {8'd114,8'd100,8'd99,8'd121,8'd99,8'd108,8'd101,8'd104};
+		if (instr_rdinstr)  new_ascii_instr = {8'd114,8'd100,8'd105,8'd110,8'd115,8'd116,8'd114};
+		if (instr_rdinstrh) new_ascii_instr = {8'd114,8'd100,8'd105,8'd110,8'd115,8'd116,8'd114,8'd104};
+		if (instr_getq)     new_ascii_instr = {8'd103,8'd101,8'd116,8'd113};
+		if (instr_setq)     new_ascii_instr = {8'd115,8'd101,8'd116,8'd113};
+		if (instr_retirq)   new_ascii_instr = {8'd114,8'd101,8'd116,8'd105,8'd114,8'd113};
+		if (instr_maskirq)  new_ascii_instr = {8'd109,8'd97,8'd115,8'd107,8'd105,8'd114,8'd113};
+		if (instr_waitirq)  new_ascii_instr = {8'd119,8'd97,8'd105,8'd116,8'd105,8'd114,8'd113};
+		if (instr_timer)    new_ascii_instr = {8'd116,8'd105,8'd109,8'd101,8'd114};                          
+	
 	end
 
 	reg [63:0] q_ascii_instr;
@@ -1280,14 +1271,7 @@ module picorv32 #(
 	reg [31:0] alu_shl, alu_shr;
 	reg alu_eq, alu_ltu, alu_lts;
 	//AM for FSM
-	wire pre_err;
   reg invalid;
-
-
-  //AM rrns is implemented for sub operation as of now
-	rrnsalu ralu (.in1(reg_op1),.in2(reg_op2),.add_sub(instr_sub),.in_err(in_err),.out(result),.error(pre_err)); //calling rrnsalu module by rc
-
-	assign err = (instr_add||instr_sub||instr_addi)? pre_err: 1'b0; //used for error detection in case of multiple residue error by rc
 
   
 
@@ -1657,24 +1641,7 @@ module picorv32 #(
             
           //AM comment below line when implementing rrns and replace with apt
           //line
-					// reg_next_pc <= current_pc + (compressed_instr ? 2 : 4); //original
-          // line
-          
-          if(err)
-              reg_next_pc<= current_pc;
-          else
-          begin
-              reg_next_pc<= current_pc+ (compressed_instr ? 2 : 4);// modified lines by rc
-              //based upon the check signal , if check is low than next pc is rollback to the same value, otherwise it will jump to PC+4 by rc
-              $display("DEBUG here1");
-          end
-
-
-
-
-
-
-
+					reg_next_pc <= current_pc + (compressed_instr ? 2 : 4);
 					if (ENABLE_TRACE)
 						latched_trace <= 1;
 					if (ENABLE_COUNTERS) begin
@@ -1781,7 +1748,7 @@ module picorv32 #(
 						 //AMcpu_state <= cpu_state_exec_encoded;
              //AM
              cpu_orig_state = cpu_state_exec_encoded;
-             $display($time, "AM debug cpu_orig_state = %h", cpu_state_exec_encoded);
+             //$display($time, "AM debug cpu_orig_state = %h", cpu_state_exec_encoded);
 						cpu_state <= cpu_state_exec_encoded ^ in_err1; // modified rc
 					end
 					ENABLE_IRQ && ENABLE_IRQ_QREGS && instr_getq: begin
@@ -1858,7 +1825,7 @@ module picorv32 #(
 							mem_do_rinst <= mem_do_prefetch;
             //AM rc modified 
             cpu_orig_state = cpu_state_exec_encoded;
-            $display($time, "AM debug cpu_orig_state = %h", cpu_state_exec_encoded);
+            //$display($time, "AM debug cpu_orig_state = %h", cpu_state_exec_encoded);
             cpu_state <= (cpu_state_exec_encoded)^in_err1;
 						//AM cpu_state <= cpu_state_exec_encoded;
 					end
@@ -1925,7 +1892,7 @@ module picorv32 #(
               else
               begin
 								cpu_state <= cpu_state_trap_encoded;
-                $display($time,"AM debug trap t3");
+                //$display($time,"AM debug trap t3");
               end
 						end
 					end
@@ -1967,17 +1934,8 @@ module picorv32 #(
 					latched_branch <= instr_jalr;
 					latched_store <= 1;
 					latched_stalu <= 1;
-					//cpu_state <= cpu_state_fetch_encoded; //original
+					cpu_state <= cpu_state_fetch_encoded;
           //AM include the if-else block when rrns is implemented
-          if(err)           //modified, condition for check signal is applied by rc
-          begin       
-            cpu_state <= cpu_state_exec_encoded;
-          end
-          else
-          begin
-            cpu_state <= cpu_state_fetch_encoded; ///modified, if check is low than the execution state will be on hold
-          end
-
 				end
 			end
 
@@ -2071,8 +2029,8 @@ module picorv32 #(
 
       default:
       begin
-          $display($time, "AM debug in default state\n");
-          $display($time, "AM debug in cpu_state=%h \n",cpu_state);
+          //$display($time, "AM debug in default state\n");
+          //$display($time, "AM debug in cpu_state=%h \n",cpu_state);
           invalid <= 1'b1;
           dbg_ascii_state = "inval";
 
@@ -2093,13 +2051,13 @@ module picorv32 #(
             //AM syndrome_encoded <= syndrome;
             syndrome_encoded = syndrome;
   
-            $display($time, "AM debug in evaluating cpu state based on syndrome \n");
+            //$display($time, "AM debug in evaluating cpu state based on syndrome \n");
   
             //AM cpu_state = (cpu_state)^syndrome_encoded; //Error correction for generating the correct state
   
             cpu_state[syndrome_encoded-1] = ~cpu_state[syndrome_encoded-1];
   
-            $display($time, "AM debug state has been corrected to cpu_state=%h", cpu_state);
+            //$display($time, "AM debug state has been corrected to cpu_state=%h", cpu_state);
   
             //AM initializing syndrome and syndrome_encoded
             //syndrome <= 'b0;
@@ -2823,8 +2781,7 @@ module picorv32_axi #(
 	input [11:0] in_err1,
 	input [37:0] in_err2,
 	input  [ 3:0] mem_wstrb,
-  output mem_valid,
-  output err //AM pulling out err signal from rrns so it can be used as handshaking signal if need be 
+  output mem_valid
 
 
 );

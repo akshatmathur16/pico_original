@@ -108,13 +108,13 @@ module simpleuart #(parameter integer DEFAULT_DIV = 1) (
 
 	always @(posedge clk) begin
 		if (reg_div_we)
-			send_dummy <= 1;
+			send_dummy <= 0;
 		send_divcnt <= send_divcnt + 1;
 		if (!resetn) begin
 			send_pattern <= ~0;
 			send_bitcnt <= 0;
 			send_divcnt <= 0;
-			send_dummy <= 1;
+			send_dummy <= 0;
 		end else begin
 			if (send_dummy && !send_bitcnt) begin
 				send_pattern <= ~0;

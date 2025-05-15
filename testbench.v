@@ -10,7 +10,7 @@
 //AM `ifndef VERILATOR
 module testbench #(
 	parameter AXI_TEST = 1,
-	parameter VERBOSE = 1
+	parameter VERBOSE = 0
 );
 	reg clk = 1;
 	reg resetn = 0;
@@ -25,7 +25,6 @@ module testbench #(
   wire trace_valid;
 	wire [35:0] trace_data;
 	integer trace_file;
-  wire err;
 
 
   picorv32_wrapper #(
@@ -40,8 +39,7 @@ module testbench #(
     .in_err(in_err), //input error signal by rc error signal for rrns
     .in_err1(in_err1), //AM input error signal for 
     .in_err2(in_err2), 
-    .in_err3(in_err3),
-    .err(err)
+    .in_err3(in_err3) 
 
 	);
 
@@ -51,13 +49,12 @@ module testbench #(
       repeat (100) @(posedge clk);
       resetn <= 1;
 
-      //AMin_err = 'hA0B0C1D0EF89;
       in_err = 'b0;
-      in_err1 = 'h00000001;
+      in_err1 = 'h00000000;
       in_err2 = 'b0;
-      in_err3 = 'h00000101;
-      $display($time,"AM debug in_err1 = %h", in_err1);
-      $display($time,"AM debug in_err3 = %h", in_err3);
+      in_err3 = 'h00000000;
+      //$display($time,"AM debug in_err1 = %h", in_err1);
+      //$display($time,"AM debug in_err3 = %h", in_err3);
 
        repeat (1000) @(posedge clk);
 
@@ -65,27 +62,26 @@ module testbench #(
       in_err1 = 'h00000000;
       in_err2 = 'b0;
       in_err3 = 'h00000000;
-      $display($time,"AM debug in_err1 = %h", in_err1);
-      $display($time,"AM debug in_err3 = %h", in_err3);
-
-      repeat (5000) @(posedge clk);
-
-      //AMin_err = 'h1234ABCDEF0A;
-      in_err = 'b0;
-      in_err1 = 'h00000010;
-      in_err2 = 'b0;
-      in_err3 = 'h00010001;
-      $display($time,"AM debug in_err1 = %h", in_err1);
-      $display($time,"AM debug in_err3 = %h", in_err3);
+      //$display($time,"AM debug in_err1 = %h", in_err1);
+      //$display($time,"AM debug in_err3 = %h", in_err3);
 
       repeat (5000) @(posedge clk);
 
       in_err = 'b0;
       in_err1 = 'h00000000;
       in_err2 = 'b0;
-      in_err3 = 'h00000011;
-      $display($time,"AM debug in_err1 = %h", in_err1);
-      $display($time,"AM debug in_err3 = %h", in_err3);
+      in_err3 = 'h00000000;
+      //$display($time,"AM debug in_err1 = %h", in_err1);
+      //$display($time,"AM debug in_err3 = %h", in_err3);
+
+      repeat (5000) @(posedge clk);
+
+      in_err = 'b0;
+      in_err1 = 'h00000000;
+      in_err2 = 'b0;
+      in_err3 = 'h00000000;
+      //$display($time,"AM debug in_err1 = %h", in_err1);
+      //$display($time,"AM debug in_err3 = %h", in_err3);
 
 
     
@@ -96,7 +92,7 @@ module testbench #(
 			$dumpfile("testbench.vcd");
 			$dumpvars(0, testbench);
 		end
-		repeat (50000) @(posedge clk);
+		repeat (10000000) @(posedge clk);
 		//#10000000;
 		$display("TIMEOUT");
 		$stop;
@@ -142,8 +138,7 @@ module picorv32_wrapper #(
   input [48:0] in_err, //input error signal by rc error signal for rrns
 	input [11:0] in_err1, //AM input error signal for 
 	input [37:0] in_err2, 
-	input [37:0] in_err3,
-  output err//AM pulling out err signal from rrns so it can be used as handshaking signal if need be
+	input [37:0] in_err3 
 
 );
 	wire tests_passed;
@@ -184,6 +179,7 @@ module picorv32_wrapper #(
 		.AXI_TEST (AXI_TEST),
 		.VERBOSE  (VERBOSE)
 	) mem (
+		.uart_wait		 (simpleuart_reg_dat_wait),
 		.clk             (clk             ),
 		.mem_axi_awvalid (mem_axi_awvalid ),
 		.mem_axi_awready (mem_axi_awready ),
@@ -265,6 +261,33 @@ module picorv32_wrapper #(
       .reg_dat_wait(simpleuart_reg_dat_wait)
   );
 
+  reg [7:0] buffer;
+  localparam ser_half_period = 53;
+  event ser_sample;
+
+	always begin
+		@(negedge ser_tx);
+
+		repeat (ser_half_period) @(posedge clk);
+		-> ser_sample; // start bit
+
+		repeat (8) begin
+			repeat (ser_half_period) @(posedge clk);
+			repeat (ser_half_period) @(posedge clk);
+			buffer = {ser_tx, buffer[7:1]};
+			-> ser_sample; // data bit
+		end
+
+		repeat (ser_half_period) @(posedge clk);
+		repeat (ser_half_period) @(posedge clk);
+		-> ser_sample; // stop bit
+
+		if (buffer < 32 || buffer >= 127)
+			$display("Serial data: %d", buffer);
+		else
+			$display("Serial data: '%c'", buffer);
+	end
+
 
 
 
@@ -335,8 +358,7 @@ module picorv32_wrapper #(
     .in_err1(in_err1), //AM input error signal for 
     .in_err2(in_err2),
     .mem_wstrb(mem_wstrb),
-    .mem_valid(mem_valid),
-    .err(err) //AM
+    .mem_valid(mem_valid)
 
 	);
 
@@ -404,6 +426,7 @@ module axi4_memory #(
 ) (
 	/* verilator lint_off MULTIDRIVEN */
 
+	input 			  uart_wait,
 	input             clk,
 	input             mem_axi_awvalid,
 	output reg        mem_axi_awready,
@@ -435,7 +458,7 @@ module axi4_memory #(
 	//AM reg [31:0]   memory [0:128*1024/4-1] /* verilator public */;
 
   //AM (* ram_style = "block" *)	reg [31:0]   memory [0:15000] /* verilator public */;
-  (* ram_style = "block" *)	reg [31:0]   memory [0:774] /* verilator public */;
+  (* ram_style = "block" *)	reg [31:0]   memory [0:775] /* verilator public */;
 	
   reg verbose;
 	initial verbose = $test$plusargs("verbose") || VERBOSE;
@@ -466,7 +489,7 @@ module axi4_memory #(
 
 	reg [1023:0] firmware_file;
 	initial begin
-			firmware_file = "firmware/firmware.hex.org";
+			firmware_file = "firmware/firmware.hex";
       $readmemh(firmware_file,memory);
 	end
 
@@ -527,6 +550,7 @@ module axi4_memory #(
 
 	task handle_axi_arvalid; begin
 		mem_axi_arready <= 1;
+		//$display($time, " LATCHING READ ADDR: %08x", mem_axi_araddr);
 		latched_raddr = mem_axi_araddr;
 		latched_rinsn = mem_axi_arprot[2];
 		latched_raddr_en = 1;
@@ -535,7 +559,7 @@ module axi4_memory #(
 
   task handle_axi_awvalid;
       begin
-          $display($time,"AM debug inside handle_axi_awvalid");
+          //$display($time,"AM debug inside handle_axi_awvalid");
           mem_axi_awready <= 1;
           latched_waddr = mem_axi_awaddr;
           latched_waddr_en = 1;
@@ -551,46 +575,80 @@ module axi4_memory #(
 		fast_wdata <= 1;
 	end endtask
 
+//	wire simpleuart_reg_dat_wait;
+//	simpleuart simpleuart (
+  //    .reg_dat_wait(simpleuart_reg_dat_wait)
+  //);
+
 	task handle_axi_rvalid; begin
 		if (verbose)
 			$display("RD: ADDR=%08x DATA=%08x%s", latched_raddr, memory[latched_raddr >> 2], latched_rinsn ? " INSN" : "");
 		if (latched_raddr < 128*1024) begin
+			//$display("fetching, simpleuart_reg_dat_wait = ", uart_wait);
+			while (uart_wait) 
+				begin
+				//	$display("waiting...");
+					@(posedge clk);
+				end
 			mem_axi_rdata <= memory[latched_raddr >> 2];
 			mem_axi_rvalid <= 1;
 			latched_raddr_en = 0;
+		end else if (latched_raddr==32'h0200_0008) begin
+			if (verbose) 
+				$display("OUT: '%c'", latched_wdata[7:0]);
+			else
+				$write("%c", latched_wdata[7:0]);
 		end else begin
-			$display($time,"handle_axi_rvalid OUT-OF-BOUNDS MEMORY READ FROM %08x", latched_raddr);
+			$display("OUT-OF-BOUNDS MEMORY READ FROM %08x", latched_raddr);
 			$finish;
 		end
 	end endtask
 
 	task handle_axi_bvalid; begin
-      $display($time,"AM debug inside handle_axi_bvalid");
+      //$display($time,"AM debug inside handle_axi_bvalid");
 		if (verbose)
 			$display("WR: ADDR=%08x DATA=%08x STRB=%04b", latched_waddr, latched_wdata, latched_wstrb);
-		if (latched_waddr < 128*1024) begin
+		if (latched_waddr < 128*1024 || latched_waddr==32'h0200_0008  || latched_waddr==32'h0200_0004) begin
 			if (latched_wstrb[0]) memory[latched_waddr >> 2][ 7: 0] <= latched_wdata[ 7: 0];
 			if (latched_wstrb[1]) memory[latched_waddr >> 2][15: 8] <= latched_wdata[15: 8];
 			if (latched_wstrb[2]) memory[latched_waddr >> 2][23:16] <= latched_wdata[23:16];
 			if (latched_wstrb[3]) memory[latched_waddr >> 2][31:24] <= latched_wdata[31:24];
 		end else
-		if (latched_waddr == 32'h1000_0000) begin
-			if (verbose) begin
+		if (latched_waddr == 32'h1000_0000) 
+		begin
+			if (verbose) 
+			begin
 				if (32 <= latched_wdata && latched_wdata < 128)
 					$display("OUT: '%c'", latched_wdata[7:0]);
 				else
 					$display("OUT: %3d", latched_wdata);
-			end else begin
+			end 
+			else 
+			begin
 				$write("%c", latched_wdata[7:0]);
-`ifndef VERILATOR
-				$fflush();
-`endif
+				`ifndef VERILATOR
+								$fflush();
+				`endif
 			end
-		end else
-		if (latched_waddr == 32'h2000_0000) begin
+		end 
+		else if (latched_waddr == 32'h0200_0008) 
+		begin
+			if (verbose) 
+				$display("OUT uart: '%c'", latched_wdata[7:0]);
+			else 
+			begin
+				$write("%c", latched_wdata[7:0]);
+				`ifndef VERILATOR
+								$fflush();
+				`endif
+			end
+		end else 
+		if (latched_waddr == 32'h2000_0000) 
+		begin
 			if (latched_wdata == 123456789)
 				tests_passed = 1;
-		end else begin
+		end else 
+		begin
 			$display($time,"handle_axi_bvalid OUT-OF-BOUNDS MEMORY WRITE TO %08x", latched_waddr);
 			$finish;
 		end
@@ -666,7 +724,7 @@ module axi4_memory #(
       end
 
       if (mem_axi_wvalid && mem_axi_wready && !fast_wdata) begin
-          $display($time,"AM debug in posedge if block");
+          //$display($time,"AM debug in posedge if block");
           //AM latched_wdata = mem_axi_wdata;
       latched_wdata = latched_wdata_decoded;
       latched_wstrb = mem_axi_wstrb;
@@ -699,596 +757,10 @@ module axi4_memory #(
     if (!mem_axi_bvalid && latched_waddr_en && latched_wdata_en && !delay_axi_transaction[4])
     begin
         handle_axi_bvalid;
-        $display($time,"AM debug handle_axi_bvalid called posedge block");
+        //$display($time,"AM debug handle_axi_bvalid called posedge block");
     end 
 end
+
+
 endmodule
-
-//AM module axi4_memory #(
-//AM 	parameter AXI_TEST = 0,
-//AM 	parameter VERBOSE = 0
-//AM ) (
-//AM 	/* verilator lint_off MULTIDRIVEN */
-//AM 
-//AM 	input             clk,
-//AM 	input             mem_axi_awvalid,
-//AM 	output reg        mem_axi_awready,
-//AM 	input      [31:0] mem_axi_awaddr,
-//AM 	input      [ 2:0] mem_axi_awprot,
-//AM 
-//AM 	input             mem_axi_wvalid,
-//AM 	output reg        mem_axi_wready,
-//AM 	input      [31:0] mem_axi_wdata, //AM write data to memory
-//AM 	input      [ 3:0] mem_axi_wstrb,
-//AM 
-//AM 	output reg        mem_axi_bvalid,
-//AM 	input             mem_axi_bready,
-//AM 
-//AM 	input             mem_axi_arvalid,
-//AM 	output reg        mem_axi_arready,
-//AM 	input      [31:0] mem_axi_araddr,
-//AM 	input      [ 2:0] mem_axi_arprot,
-//AM 
-//AM 	output reg        mem_axi_rvalid,
-//AM 	input             mem_axi_rready,
-//AM 	//AM output reg [31:0] mem_axi_rdata, // AM read data from memory
-//AM 	output [31:0] mem_axi_rdata_decoded, // AM read data from memory
-//AM 
-//AM 	output reg        tests_passed,
-//AM   input   [11:0]    in_err1,
-//AM   input   [37:0]    in_err3
-//AM );
-//AM 	//AM reg [31:0]   memory [0:128*1024/4-1] /* verilator public */;
-//AM 
-//AM   //AM (* ram_style = "block" *)	reg [31:0]   memory [0:15000] /* verilator public */;
-//AM   (* ram_style = "block" *)	reg [31:0]   memory [0:150] /* verilator public */;
-//AM 	
-//AM   reg verbose;
-//AM 	initial verbose = $test$plusargs("verbose") || VERBOSE;
-//AM 
-//AM 	reg axi_test;
-//AM 	initial axi_test = $test$plusargs("axi_test") || AXI_TEST;
-//AM 
-//AM 	initial begin
-//AM 		mem_axi_awready = 0;
-//AM 		mem_axi_wready = 0;
-//AM 		mem_axi_bvalid = 0;
-//AM 		mem_axi_arready = 0;
-//AM 		mem_axi_rvalid = 0;
-//AM 		tests_passed = 0;
-//AM 	end
-//AM 
-//AM 	reg [1023:0] firmware_file;
-//AM 	initial begin
-//AM 			firmware_file = "firmware/firmware.hex";
-//AM       $readmemh(firmware_file,memory);
-//AM 	end
-//AM 
-//AM 
-//AM 
-//AM 	reg [63:0] xorshift64_state = 64'd88172645463325252;
-//AM 
-//AM 	task xorshift64_next;
-//AM 		begin
-//AM 			// see page 4 of Marsaglia, George (July 2003). "Xorshift RNGs". Journal of Statistical Software 8 (14).
-//AM 			xorshift64_state = xorshift64_state ^ (xorshift64_state << 13);
-//AM 			xorshift64_state = xorshift64_state ^ (xorshift64_state >>  7);
-//AM 			xorshift64_state = xorshift64_state ^ (xorshift64_state << 17);
-//AM 		end
-//AM 	endtask
-//AM 
-//AM 	reg [2:0] fast_axi_transaction = ~0;
-//AM 	reg [4:0] async_axi_transaction = ~0;
-//AM 	reg [4:0] delay_axi_transaction = 0;
-//AM 
-//AM 	always @(posedge clk) begin
-//AM 		if (axi_test) begin
-//AM 				xorshift64_next;
-//AM 				{fast_axi_transaction, async_axi_transaction, delay_axi_transaction} <= xorshift64_state;
-//AM 		end
-//AM 	end
-//AM 
-//AM 
-//AM 	wire [37:0] mem_axi_wdata_encoded; //AM encoded data from hammingcode to be written in memory 
-//AM 
-//AM   hammingcodegenerator1 write_port_hamming (mem_axi_wdata, mem_axi_wdata_encoded);
-//AM 
-//AM 
-//AM  
-//AM 
-//AM 	reg latched_raddr_en = 0;
-//AM 	reg latched_waddr_en = 0;
-//AM 	reg latched_wdata_en = 0;
-//AM 
-//AM 	reg fast_raddr = 0;
-//AM 	reg fast_waddr = 0;
-//AM 	reg fast_wdata = 0;
-//AM 
-//AM 	reg [31:0] latched_raddr;
-//AM 	reg [31:0] latched_waddr;
-//AM 	reg [31:0] latched_wdata;
-//AM 	wire [37:0] latched_wdata_encoded;
-//AM 	wire [31:0] latched_wdata_decoded;
-//AM 	reg [ 3:0] latched_wstrb;
-//AM 	reg        latched_rinsn;
-//AM 
-//AM   //AM Signals for Read port Hamming code
-//AM 
-//AM   wire [37:0] mem_axi_rdata_encoded;
-//AM 	wire [37:0] mem_axi_rdata_encoded_error;
-//AM 	reg [31:0] mem_axi_rdata; 
-//AM 
-//AM 
-//AM 	task handle_axi_arvalid; begin
-//AM 		mem_axi_arready <= 1;
-//AM 		latched_raddr = mem_axi_araddr;
-//AM 		latched_rinsn = mem_axi_arprot[2];
-//AM 		latched_raddr_en = 1;
-//AM 		fast_raddr <= 1;
-//AM 	end endtask
-//AM 
-//AM   task handle_axi_awvalid;
-//AM       begin
-//AM           $display($time,"AM debug inside handle_axi_awvalid");
-//AM           mem_axi_awready <= 1;
-//AM           latched_waddr = mem_axi_awaddr;
-//AM           latched_waddr_en = 1;
-//AM           fast_waddr <= 1;
-//AM       end
-//AM   endtask
-//AM 
-//AM 	task handle_axi_wvalid; begin
-//AM 		mem_axi_wready <= 1;
-//AM 		//AM latched_wdata = mem_axi_wdata;
-//AM 	  //AM latched_wdata_encoded = mem_axi_wdata_encoded;
-//AM     latched_wdata = latched_wdata_decoded;
-//AM 		latched_wstrb = mem_axi_wstrb;
-//AM 		latched_wdata_en = 1;
-//AM 		fast_wdata <= 1;
-//AM 	end endtask
-//AM 
-//AM 	task handle_axi_rvalid; begin
-//AM 		if (verbose)
-//AM 			$display("RD: ADDR=%08x DATA=%08x%s", latched_raddr, memory[latched_raddr >> 2], latched_rinsn ? " INSN" : "");
-//AM 		if (latched_raddr < 128*1024) begin
-//AM 			mem_axi_rdata <= memory[latched_raddr >> 2];
-//AM 			mem_axi_rvalid <= 1;
-//AM 			latched_raddr_en = 0;
-//AM 		end else begin
-//AM 			$display($time,"handle_axi_rvalid OUT-OF-BOUNDS MEMORY READ FROM %08x", latched_raddr);
-//AM 			$finish;
-//AM 		end
-//AM 	end endtask
-//AM 
-//AM 	task handle_axi_bvalid; begin
-//AM       $display($time,"AM debug inside handle_axi_bvalid");
-//AM 		if (verbose)
-//AM 			$display("WR: ADDR=%08x DATA=%08x STRB=%04b", latched_waddr, latched_wdata, latched_wstrb);
-//AM 		if (latched_waddr < 128*1024) begin
-//AM 			if (latched_wstrb[0]) memory[latched_waddr >> 2][ 7: 0] <= latched_wdata[ 7: 0];
-//AM 			if (latched_wstrb[1]) memory[latched_waddr >> 2][15: 8] <= latched_wdata[15: 8];
-//AM 			if (latched_wstrb[2]) memory[latched_waddr >> 2][23:16] <= latched_wdata[23:16];
-//AM 			if (latched_wstrb[3]) memory[latched_waddr >> 2][31:24] <= latched_wdata[31:24];
-//AM 		end else
-//AM 		if (latched_waddr == 32'h1000_0000) begin
-//AM 			if (verbose) begin
-//AM 				if (32 <= latched_wdata && latched_wdata < 128)
-//AM 					$display("OUT: '%c'", latched_wdata[7:0]);
-//AM 				else
-//AM 					$display("OUT: %3d", latched_wdata);
-//AM 			end else begin
-//AM 				$write("%c", latched_wdata[7:0]);
-//AM `ifndef VERILATOR
-//AM 				$fflush();
-//AM `endif
-//AM 			end
-//AM 		end else
-//AM 		if (latched_waddr == 32'h2000_0000) begin
-//AM 			if (latched_wdata == 123456789)
-//AM 				tests_passed = 1;
-//AM 		end else begin
-//AM 			$display($time,"handle_axi_bvalid OUT-OF-BOUNDS MEMORY WRITE TO %08x", latched_waddr);
-//AM 			$finish;
-//AM 		end
-//AM 		mem_axi_bvalid <= 1;
-//AM 		latched_waddr_en = 0;
-//AM 		latched_wdata_en = 0;
-//AM 	end endtask
-//AM 
-//AM   assign latched_wdata_encoded = mem_axi_wdata_encoded ^ in_err3;
-//AM   //AMassign latched_wdata_encoded = mem_axi_wdata_encoded;
-//AM   
-//AM   operandrecovery1 write_port_recover (latched_wdata_encoded, latched_wdata_decoded);
-//AM 
-//AM   hammingcodegenerator1 read_port_hamming(mem_axi_rdata, mem_axi_rdata_encoded);
-//AM    
-//AM    assign mem_axi_rdata_encoded_error = mem_axi_rdata_encoded ^ in_err3;
-//AM    //AMassign mem_axi_rdata_encoded_error = mem_axi_rdata_encoded ;
-//AM    operandrecovery1 read_port_recover (mem_axi_rdata_encoded_error, mem_axi_rdata_decoded);
-//AM    //AM operandrecovery1 read_port_recover (mem_axi_rdata_encoded, mem_axi_rdata_decoded);
-//AM 
-//AM 
-//AM 	always @(negedge clk) begin
-//AM 		if (mem_axi_arvalid && !(latched_raddr_en || fast_raddr) && async_axi_transaction[0]) handle_axi_arvalid;
-//AM 		if (mem_axi_awvalid && !(latched_waddr_en || fast_waddr) && async_axi_transaction[1]) handle_axi_awvalid;
-//AM 		if (mem_axi_wvalid  && !(latched_wdata_en || fast_wdata) && async_axi_transaction[2]) handle_axi_wvalid;
-//AM 		if (!mem_axi_rvalid && latched_raddr_en && async_axi_transaction[3]) handle_axi_rvalid;
-//AM 		if (!mem_axi_bvalid && latched_waddr_en && latched_wdata_en && async_axi_transaction[4]) handle_axi_bvalid;
-//AM 	end
-//AM 
-//AM 	always @(posedge clk) begin
-//AM 		mem_axi_arready <= 0;
-//AM 		mem_axi_awready <= 0;
-//AM 		mem_axi_wready <= 0;
-//AM 
-//AM 		fast_raddr <= 0;
-//AM 		fast_waddr <= 0;
-//AM 		fast_wdata <= 0;
-//AM 
-//AM 		if (mem_axi_rvalid && mem_axi_rready) begin
-//AM 			mem_axi_rvalid <= 0;
-//AM 		end
-//AM 
-//AM 		if (mem_axi_bvalid && mem_axi_bready) begin
-//AM 			mem_axi_bvalid <= 0;
-//AM 		end
-//AM 
-//AM 		if (mem_axi_arvalid && mem_axi_arready && !fast_raddr) begin
-//AM 			latched_raddr = mem_axi_araddr;
-//AM 			latched_rinsn = mem_axi_arprot[2];
-//AM 			latched_raddr_en = 1;
-//AM 		end
-//AM 
-//AM 		if (mem_axi_awvalid && mem_axi_awready && !fast_waddr) begin
-//AM 			latched_waddr = mem_axi_awaddr;
-//AM 			latched_waddr_en = 1;
-//AM 		end
-//AM 
-//AM 		if (mem_axi_wvalid && mem_axi_wready && !fast_wdata) begin
-//AM         $display($time,"AM debug in posedge if block");
-//AM 			latched_wdata = mem_axi_wdata;
-//AM 			latched_wstrb = mem_axi_wstrb;
-//AM 			latched_wdata_en = 1;
-//AM 		end
-//AM 
-//AM 		if (mem_axi_arvalid && !(latched_raddr_en || fast_raddr) && !delay_axi_transaction[0]) handle_axi_arvalid;
-//AM 		if (mem_axi_awvalid && !(latched_waddr_en || fast_waddr) && !delay_axi_transaction[1]) handle_axi_awvalid;
-//AM 		if (mem_axi_wvalid  && !(latched_wdata_en || fast_wdata) && !delay_axi_transaction[2]) handle_axi_wvalid;
-//AM 
-//AM 		if (!mem_axi_rvalid && latched_raddr_en && !delay_axi_transaction[3]) handle_axi_rvalid;
-//AM 		if (!mem_axi_bvalid && latched_waddr_en && latched_wdata_en && !delay_axi_transaction[4])
-//AM         begin
-//AM             handle_axi_bvalid;
-//AM             $display($time,"AM debug handle_axi_bvalid called posedge block");
-//AM         end 
-//AM 	end
-//AM endmodule
-
-
-//AM module axi4_memory #(
-//AM 	parameter AXI_TEST = 0,
-//AM 	parameter VERBOSE = 0
-//AM ) (
-//AM 	/* verilator lint_off MULTIDRIVEN */
-//AM 
-//AM 	input             clk,
-//AM 	input             mem_axi_awvalid,
-//AM 	//AM output reg        mem_axi_awready,
-//AM 	output        mem_axi_awready,
-//AM 	input      [31:0] mem_axi_awaddr,
-//AM 	input      [ 2:0] mem_axi_awprot,
-//AM 
-//AM 	input             mem_axi_wvalid,
-//AM 	output reg        mem_axi_wready,
-//AM 	input      [31:0] mem_axi_wdata, //AM write data to memory
-//AM 	input      [ 3:0] mem_axi_wstrb,
-//AM 
-//AM 	output reg        mem_axi_bvalid,
-//AM 	input             mem_axi_bready,
-//AM 
-//AM 	input             mem_axi_arvalid,
-//AM 	//AM output reg        mem_axi_arready,
-//AM   output            mem_axi_arready,
-//AM 	input      [31:0] mem_axi_araddr,
-//AM 	input      [ 2:0] mem_axi_arprot,
-//AM 
-//AM 	output reg        mem_axi_rvalid,
-//AM 	input             mem_axi_rready,
-//AM 	//AM output reg [31:0] mem_axi_rdata, // AM read data from memory
-//AM 	output [31:0] mem_axi_rdata_decoded, // AM read data from memory
-//AM 
-//AM 	output reg        tests_passed,
-//AM   input   [11:0]    in_err1,
-//AM   input   [37:0]    in_err3
-//AM );
-//AM 	//AM reg [31:0]   memory [0:128*1024/4-1] /* verilator public */;
-//AM 
-//AM   //AM (* ram_style = "block" *)	reg [31:0]   memory [0:15000] /* verilator public */;
-//AM   (* ram_style = "block" *)	reg [31:0]   memory [0:150] /* verilator public */;
-//AM 	
-//AM   reg verbose;
-//AM 	initial verbose = $test$plusargs("verbose") || VERBOSE;
-//AM 
-//AM 	reg axi_test;
-//AM 	initial axi_test = $test$plusargs("axi_test") || AXI_TEST;
-//AM 
-//AM   //AM
-//AM   reg negedge_arready;
-//AM   reg posedge_arready;
-//AM 
-//AM   //AM
-//AM   reg negedge_awready;
-//AM   reg posedge_awready;
-//AM 
-//AM 	initial begin
-//AM 		//AM mem_axi_awready = 0;
-//AM     negedge_awready = 0;
-//AM     posedge_awready = 0;
-//AM 		mem_axi_wready = 0;
-//AM 		mem_axi_bvalid = 0;
-//AM 		//AM mem_axi_arready = 0;
-//AM     negedge_arready = 0;
-//AM     posedge_arready = 0;
-//AM 		mem_axi_rvalid = 0;
-//AM 		tests_passed = 0;
-//AM 	end
-//AM 
-//AM 	reg [1023:0] firmware_file;
-//AM 	initial begin
-//AM 			firmware_file = "firmware/firmware.hex";
-//AM       $readmemh(firmware_file,memory);
-//AM 	end
-//AM 
-//AM 
-//AM 
-//AM 	reg [63:0] xorshift64_state = 64'd88172645463325252;
-//AM 
-//AM 	task xorshift64_next;
-//AM 		begin
-//AM 			// see page 4 of Marsaglia, George (July 2003). "Xorshift RNGs". Journal of Statistical Software 8 (14).
-//AM 			xorshift64_state = xorshift64_state ^ (xorshift64_state << 13);
-//AM 			xorshift64_state = xorshift64_state ^ (xorshift64_state >>  7);
-//AM 			xorshift64_state = xorshift64_state ^ (xorshift64_state << 17);
-//AM 		end
-//AM 	endtask
-//AM 
-//AM 	reg [2:0] fast_axi_transaction = ~0;
-//AM 	reg [4:0] async_axi_transaction = ~0;
-//AM 	reg [4:0] delay_axi_transaction = 0;
-//AM 
-//AM 	always @(posedge clk) begin
-//AM 		if (axi_test) begin
-//AM 				xorshift64_next;
-//AM 				{fast_axi_transaction, async_axi_transaction, delay_axi_transaction} <= xorshift64_state;
-//AM 		end
-//AM 	end
-//AM 
-//AM 
-//AM 	wire [37:0] mem_axi_wdata_encoded; //AM encoded data from hammingcode to be written in memory 
-//AM 
-//AM   hammingcodegenerator1 write_port_hamming (mem_axi_wdata, mem_axi_wdata_encoded);
-//AM 
-//AM 
-//AM  
-//AM 
-//AM 	reg latched_raddr_en = 0;
-//AM 	reg latched_waddr_en = 0;
-//AM 	reg latched_wdata_en = 0;
-//AM 
-//AM 	reg fast_raddr = 0;
-//AM 	reg fast_waddr = 0;
-//AM 	reg fast_wdata = 0;
-//AM 
-//AM 	reg [31:0] latched_raddr;
-//AM 	reg [31:0] latched_waddr;
-//AM 	reg [31:0] latched_wdata;
-//AM 	wire [37:0] latched_wdata_encoded;
-//AM 	wire [31:0] latched_wdata_decoded;
-//AM 	reg [ 3:0] latched_wstrb;
-//AM 	reg        latched_rinsn;
-//AM 
-//AM   //AM Signals for Read port Hamming code
-//AM 
-//AM   wire [37:0] mem_axi_rdata_encoded;
-//AM 	wire [37:0] mem_axi_rdata_encoded_error;
-//AM 	reg [31:0] mem_axi_rdata; 
-//AM 
-//AM 
-//AM 	task handle_axi_arvalid; begin
-//AM 		//AM mem_axi_arready <= 1;
-//AM 		latched_raddr = mem_axi_araddr;
-//AM 		latched_rinsn = mem_axi_arprot[2];
-//AM 		latched_raddr_en = 1;
-//AM 		fast_raddr <= 1;
-//AM 	end endtask
-//AM 
-//AM   task handle_axi_awvalid;
-//AM       begin
-//AM           $display($time,"AM debug inside handle_axi_awvalid");
-//AM           //AM mem_axi_awready <= 1;
-//AM           latched_waddr = mem_axi_awaddr;
-//AM           latched_waddr_en = 1;
-//AM           fast_waddr <= 1;
-//AM       end
-//AM   endtask
-//AM 
-//AM 	task handle_axi_wvalid; begin
-//AM 		mem_axi_wready <= 1;
-//AM     latched_wdata = latched_wdata_decoded;
-//AM 		latched_wstrb = mem_axi_wstrb;
-//AM 		latched_wdata_en = 1;
-//AM 		fast_wdata <= 1;
-//AM 	end endtask
-//AM 
-//AM 	task handle_axi_rvalid; begin
-//AM 		if (verbose)
-//AM 			$display("RD: ADDR=%08x DATA=%08x%s", latched_raddr, memory[latched_raddr >> 2], latched_rinsn ? " INSN" : "");
-//AM 		if (latched_raddr < 128*1024) begin
-//AM 			mem_axi_rdata <= memory[latched_raddr >> 2];
-//AM 			mem_axi_rvalid <= 1;
-//AM 			latched_raddr_en = 0;
-//AM 		end else begin
-//AM 			$display($time,"handle_axi_rvalid OUT-OF-BOUNDS MEMORY READ FROM %08x", latched_raddr);
-//AM 			$finish;
-//AM 		end
-//AM 	end endtask
-//AM 
-//AM 	task handle_axi_bvalid; begin
-//AM       $display($time,"AM debug inside handle_axi_bvalid");
-//AM 		if (verbose)
-//AM 			$display("WR: ADDR=%08x DATA=%08x STRB=%04b", latched_waddr, latched_wdata, latched_wstrb);
-//AM 		if (latched_waddr < 128*1024) begin
-//AM 			if (latched_wstrb[0]) memory[latched_waddr >> 2][ 7: 0] <= latched_wdata[ 7: 0];
-//AM 			if (latched_wstrb[1]) memory[latched_waddr >> 2][15: 8] <= latched_wdata[15: 8];
-//AM 			if (latched_wstrb[2]) memory[latched_waddr >> 2][23:16] <= latched_wdata[23:16];
-//AM 			if (latched_wstrb[3]) memory[latched_waddr >> 2][31:24] <= latched_wdata[31:24];
-//AM 		end else
-//AM 		if (latched_waddr == 32'h1000_0000) begin
-//AM 			if (verbose) begin
-//AM 				if (32 <= latched_wdata && latched_wdata < 128)
-//AM 					$display("OUT: '%c'", latched_wdata[7:0]);
-//AM 				else
-//AM 					$display("OUT: %3d", latched_wdata);
-//AM 			end else begin
-//AM 				$write("%c", latched_wdata[7:0]);
-//AM `ifndef VERILATOR
-//AM 				$fflush();
-//AM `endif
-//AM 			end
-//AM 		end else
-//AM 		if (latched_waddr == 32'h2000_0000) begin
-//AM 			if (latched_wdata == 123456789)
-//AM 				tests_passed = 1;
-//AM 		end else begin
-//AM 			$display($time,"handle_axi_bvalid OUT-OF-BOUNDS MEMORY WRITE TO %08x", latched_waddr);
-//AM 			$finish;
-//AM 		end
-//AM 		mem_axi_bvalid <= 1;
-//AM 		latched_waddr_en = 0;
-//AM 		latched_wdata_en = 0;
-//AM 	end endtask
-//AM 
-//AM   assign latched_wdata_encoded = mem_axi_wdata_encoded ^ in_err3;
-//AM   //AMassign latched_wdata_encoded = mem_axi_wdata_encoded;
-//AM   
-//AM   operandrecovery1 write_port_recover (latched_wdata_encoded, latched_wdata_decoded);
-//AM 
-//AM    hammingcodegenerator1 read_port_hamming(mem_axi_rdata, mem_axi_rdata_encoded);
-//AM    
-//AM    assign mem_axi_rdata_encoded_error = mem_axi_rdata_encoded ^ in_err3;
-//AM    //AMassign mem_axi_rdata_encoded_error = mem_axi_rdata_encoded ;
-//AM    operandrecovery1 read_port_recover (mem_axi_rdata_encoded_error, mem_axi_rdata_decoded);
-//AM    //AM operandrecovery1 read_port_recover (mem_axi_rdata_encoded, mem_axi_rdata_decoded);
-//AM    //
-//AM 
-//AM    //AM
-//AM     assign mem_axi_arready = (mem_axi_arvalid && !(latched_raddr_en || fast_raddr) && async_axi_transaction[0]) ? negedge_arready:(mem_axi_arvalid && !(latched_raddr_en || fast_raddr) && !delay_axi_transaction[0]) ? posedge_arready: mem_axi_arready  ; 
-//AM  
-//AM     assign mem_axi_awready = (mem_axi_wvalid  && !(latched_wdata_en || fast_wdata) && async_axi_transaction[2]) ? negedge_awready : (mem_axi_awvalid && !(latched_waddr_en || fast_waddr) && !delay_axi_transaction[1]) ? posedge_awready:mem_axi_awready ;
-//AM  
-//AM //AM   always @(*)
-//AM //AM   begin
-//AM //AM       if(mem_axi_arvalid && !(latched_raddr_en || fast_raddr) && async_axi_transaction[0])
-//AM //AM       begin
-//AM //AM           mem_axi_arready = negedge_arready;
-//AM //AM       end
-//AM //AM       else if (mem_axi_arvalid && !(latched_raddr_en || fast_raddr) && !delay_axi_transaction[0])
-//AM //AM       begin
-//AM //AM           mem_axi_arready = posedge_arready;
-//AM //AM       end
-//AM //AM       else
-//AM //AM       begin
-//AM //AM           mem_axi_arready = 0;
-//AM //AM       end
-//AM //AM
-//AM //AM       if(mem_axi_wvalid  && !(latched_wdata_en || fast_wdata) && async_axi_transaction[2])
-//AM //AM       begin
-//AM //AM           mem_axi_awready = negedge_awready;
-//AM //AM       end
-//AM //AM       else if(mem_axi_awvalid && !(latched_waddr_en || fast_waddr) && !delay_axi_transaction[1])
-//AM //AM       begin
-//AM //AM           mem_axi_awready = posedge_awready;
-//AM //AM       end
-//AM //AM       else
-//AM //AM       begin
-//AM //AM           mem_axi_awready = 0;
-//AM //AM       end
-//AM //AM   end
-//AM 
-//AM 	always @(negedge clk) begin
-//AM 		if (mem_axi_arvalid && !(latched_raddr_en || fast_raddr) && async_axi_transaction[0]) handle_axi_arvalid;
-//AM     //AM 
-//AM 		if (mem_axi_arvalid && !(latched_raddr_en || fast_raddr) && async_axi_transaction[0]) negedge_arready <= 'b1;
-//AM 		
-//AM     if (mem_axi_awvalid && !(latched_waddr_en || fast_waddr) && async_axi_transaction[1]) handle_axi_awvalid;
-//AM 		if (mem_axi_wvalid  && !(latched_wdata_en || fast_wdata) && async_axi_transaction[2]) handle_axi_wvalid;
-//AM 		
-//AM 
-//AM     //AM
-//AM     if (mem_axi_wvalid  && !(latched_wdata_en || fast_wdata) && async_axi_transaction[2]) negedge_awready <= 'b1;
-//AM 		
-//AM     if (!mem_axi_rvalid && latched_raddr_en && async_axi_transaction[3]) handle_axi_rvalid;
-//AM 		if (!mem_axi_bvalid && latched_waddr_en && latched_wdata_en && async_axi_transaction[4]) handle_axi_bvalid;
-//AM 	end
-//AM 
-//AM 
-//AM 	always @(posedge clk) begin
-//AM 		//AM mem_axi_arready <= 0;
-//AM 		posedge_arready <= 0;
-//AM 		//AM mem_axi_awready <= 0;
-//AM     posedge_awready <= 0;
-//AM 		mem_axi_wready <= 0;
-//AM 
-//AM 
-//AM 		fast_raddr <= 0;
-//AM 		fast_waddr <= 0;
-//AM 		fast_wdata <= 0;
-//AM 
-//AM 		if (mem_axi_rvalid && mem_axi_rready) begin
-//AM 			mem_axi_rvalid <= 0;
-//AM 		end
-//AM 
-//AM 		if (mem_axi_bvalid && mem_axi_bready) begin
-//AM 			mem_axi_bvalid <= 0;
-//AM 		end
-//AM 
-//AM 		if (mem_axi_arvalid && mem_axi_arready && !fast_raddr) begin
-//AM 			latched_raddr = mem_axi_araddr;
-//AM 			latched_rinsn = mem_axi_arprot[2];
-//AM 			latched_raddr_en = 1;
-//AM 		end
-//AM 
-//AM 		if (mem_axi_awvalid && mem_axi_awready && !fast_waddr) begin
-//AM 			latched_waddr = mem_axi_awaddr;
-//AM 			latched_waddr_en = 1;
-//AM 		end
-//AM 
-//AM 		if (mem_axi_wvalid && mem_axi_wready && !fast_wdata) begin
-//AM         $display($time,"AM debug in posedge if block");
-//AM 			//AM latched_wdata = mem_axi_wdata;
-//AM 			latched_wdata = latched_wdata_decoded;
-//AM 			latched_wstrb = mem_axi_wstrb;
-//AM 			latched_wdata_en = 1;
-//AM 		end
-//AM 
-//AM 		if (mem_axi_arvalid && !(latched_raddr_en || fast_raddr) && !delay_axi_transaction[0]) handle_axi_arvalid;
-//AM     //AM 
-//AM 		if (mem_axi_arvalid && !(latched_raddr_en || fast_raddr) && !delay_axi_transaction[0]) posedge_arready <= 'b1;
-//AM 		
-//AM     if (mem_axi_awvalid && !(latched_waddr_en || fast_waddr) && !delay_axi_transaction[1]) handle_axi_awvalid;
-//AM     
-//AM 
-//AM     //AM
-//AM     if (mem_axi_awvalid && !(latched_waddr_en || fast_waddr) && !delay_axi_transaction[1]) posedge_awready <= 'b1;
-//AM 		
-//AM     if (mem_axi_wvalid  && !(latched_wdata_en || fast_wdata) && !delay_axi_transaction[2]) handle_axi_wvalid;
-//AM 
-//AM 		if (!mem_axi_rvalid && latched_raddr_en && !delay_axi_transaction[3]) handle_axi_rvalid;
-//AM 		if (!mem_axi_bvalid && latched_waddr_en && latched_wdata_en && !delay_axi_transaction[4])
-//AM         begin
-//AM             handle_axi_bvalid;
-//AM             $display($time,"AM debug handle_axi_bvalid called posedge block");
-//AM         end 
-//AM 	end
-//AM endmodule
 
